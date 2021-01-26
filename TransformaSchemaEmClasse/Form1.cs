@@ -46,6 +46,7 @@ namespace TransformaSchemaEmClasse
                             namespace 
                             {
                                 [Table(" + duplaAspas);
+
                     string table = schemaDDL.Substring(13),
                         tableName = "", colunas = "";
                     int inicioLeitura = 0;
@@ -193,7 +194,202 @@ namespace TransformaSchemaEmClasse
                 }
                 else if (comboBD.SelectedIndex == 1) //Sql Server
                 {
+                    char duplaAspas = '"';
+                    string schemaDDL = richtxtSchema.Text;
+                    StringBuilder str = new StringBuilder();
+                    schemaDDL = schemaDDL.Replace('"', ' ');
 
+                    schemaDDL = schemaDDL.Replace('\n', ' ');
+                    str.Append(@"using System;
+                            using System.Collections.Generic;
+                            using System.ComponentModel.DataAnnotations;
+                            using System.ComponentModel.DataAnnotations.Schema;
+                            using System.Linq;
+                            using System.Web;
+
+                            namespace 
+                            {
+                                [Table(" + duplaAspas);
+                    string table = schemaDDL.Substring(13),
+                        tableName = "", colunas = "";
+                    int inicioLeitura = 0;
+                    IList<Colunas> listaColunas = new List<Colunas>();
+
+                    //EncontraNomeTabela
+                    foreach (var c in table)
+                    {
+                        if (c == '.')
+                        {
+
+                            tableName = "";
+                        }
+                        else if (c == '(')
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            tableName += c;
+
+                        }
+                        inicioLeitura++;
+                    }
+                    str.Append(tableName.Trim() + duplaAspas + ")]" + Environment.NewLine);
+                    str.Append(@" public class " + tableName + " {" + Environment.NewLine);
+                    table = schemaDDL.Trim().Substring(inicioLeitura + 13);
+
+                    int leitura = 0;//0 - Nome,1 - Tipo, 2 - tamanho
+                    Colunas coluna = new Colunas();
+                    Boolean ignora = false;
+                    foreach (var c in table)
+                    {
+                        //if (coluna.name != null)
+                        //{
+                        //    if (coluna.name.Trim().Equals("Data"))
+                        //    {
+                        //        Console.WriteLine("Aqui");
+                        //    }
+                        //}
+                        if (c == ';')
+                        {
+                            break;
+                        }
+                        else if( c == '[' || c == ']')
+                        {
+                            
+                        }
+                        else if (c == ' ' && colunas.Trim().Length >= 2)
+                        {
+                            if (!colunas.Trim().ToUpper().Equals("NOT") && !colunas.Trim().ToUpper().Equals("NULL")
+                                && !colunas.Trim().ToUpper().Equals("ENABLE")
+                                )
+                            {
+                                if (leitura == 0)
+                                {
+                                    ignora = false;
+                                    coluna = new Colunas();
+                                    coluna.name = colunas;
+                                    colunas = "";
+                                    leitura = 1;
+                                }
+
+                                else if (leitura == 1)
+                                {
+                                    coluna.tipo = colunas;
+                                    colunas = "";
+                                    leitura = 2;
+                                }
+                                else if (leitura == 2)
+                                    ignora = true;
+                            }
+                            else
+                            {
+
+
+                                colunas = "";
+
+                            }
+                        }
+                        else if (c == '(')
+                        {
+                            if (leitura == 1)
+                            {
+                                coluna.tipo = colunas;
+                                colunas = "";
+                                leitura = 2;
+                            }
+                        }
+                        else if (c == ')')
+                        {
+                            if (leitura == 2)
+                            {
+                                coluna.tamanho = colunas;
+                                colunas = "";
+                                leitura = 0;
+                                if (coluna.tipo.Trim().Equals("datetime"))
+                                {
+                                    coluna.tipo = "DateTime";
+                                }
+                                else if (coluna.tipo.Trim().Equals("char"))
+                                {
+                                    coluna.tipo = "string";
+                                }
+                                listaColunas.Add(coluna);
+                            }
+                        }
+                        else if (c == ',')
+                        {
+                            if (leitura == 1)
+                            {
+
+                                coluna.tipo = colunas;
+                                coluna.tamanho = "";
+                                colunas = "";
+                                leitura = 0;
+                                if (coluna.tipo.Trim().Equals("datetime"))
+                                {
+                                    coluna.tipo = "DateTime";
+                                }
+                                else if (coluna.tipo.Trim().Equals("char"))
+                                {
+                                    coluna.tipo = "string";
+                                }
+
+                                listaColunas.Add(coluna);
+                            }
+                            else if (leitura == 2)
+                            {
+                                // colunas = colunas + ",";
+                                leitura = 0;
+                                if (coluna.tipo.Trim().Equals("datetime"))
+                                {
+                                    coluna.tipo = "DateTime";
+                                }else if ( coluna.tipo.Trim().Equals("char")){
+                                    coluna.tipo = "string";
+                                }
+                                listaColunas.Add(coluna);
+                            }
+                        }
+
+                        else
+                        {
+                            if (leitura == 2 && !ignora)
+                                colunas += c;
+                            else
+                                colunas += c;
+                        }
+                    }
+
+                    // listaColunas = colunas.Split();
+
+
+                    int ordem = 0;
+                    string textoString = "", tipo = "";
+                    foreach (Colunas col in listaColunas)
+                    {
+                        // str.Append(col.name + "--" + col.tipo + "--" + col.tamanho + Environment.NewLine);
+                        textoString = "";
+                        tipo = "";
+                        tipo = converteTiposOracleCSharp(col.tipo);
+                        if (tipo.Equals("string"))
+                        {
+                            textoString = ",StringLength(" + col.tamanho + ")";
+                        }
+                        //str.Append("[Column(Order = " + ordem + ", TypeName = " + duplaAspas +
+                        //    col.tipo.Trim().ToUpper() + duplaAspas + ")" + textoString.Trim()
+                        //    + "]" + Environment.NewLine);
+
+                        str.Append("public " + tipo + " " + col.name + " { get; set; } " + Environment.NewLine);
+                        ordem++;
+                    }
+
+
+
+
+                    richTxtResult.Text = str.ToString() +
+                        @"    
+                        }
+                    }";
                 }
             }catch(Exception ex)
             {
